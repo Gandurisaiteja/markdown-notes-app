@@ -17,50 +17,43 @@ const db = require('./db');
 app.post('/register', async (req, res) => {
   const { email, password } = req.body;
 
-
   if (!email || !password) {
     return res.status(400).json({ msg: "Email and password required" });
   }
 
   const hash = await bcrypt.hash(password, 10);
 
-  db.run(
-    "INSERT INTO users (email, password) VALUES (?, ?)",
-    [email, hash],
-    function (err) {
-      if (err) {
-        console.log(err);
-        return res.status(400).json({ msg: "User already exists" });
-      }
-      res.json({ msg: "Registered successfully" });
-    }
-  );
+  try {
+    db.prepare("INSERT INTO users (email, password) VALUES (?, ?)")
+      .run(email, hash);
+
+    res.json({ msg: "Registered successfully" });
+
+  } catch (err) {
+    return res.status(400).json({ msg: "User already exists" });
+  }
 });
 
 
-
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
   const { email, password } = req.body;
-
 
   if (!email || !password) {
     return res.status(400).json({ msg: "Email and password required" });
   }
 
-  db.get("SELECT * FROM users WHERE email=?", [email], async (err, user) => {
+  const user = db.prepare("SELECT * FROM users WHERE email=?")
+                 .get(email);
 
-    if (!user) return res.status(400).json({ msg: "User not found" });
+  if (!user) return res.status(400).json({ msg: "User not found" });
 
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(400).json({ msg: "Wrong password" });
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) return res.status(400).json({ msg: "Wrong password" });
 
-    const token = jwt.sign({ id: user.id }, SECRET);
+  const token = jwt.sign({ id: user.id }, SECRET);
 
-    res.json({ token });
-  });
+  res.json({ token });
 });
-
-
 
 
 function auth(req, res, next) {
@@ -81,55 +74,38 @@ function auth(req, res, next) {
 
 
 app.get('/notes', auth, (req, res) => {
-  db.all(
-    "SELECT * FROM notes WHERE user_id=?",
-    [req.user.id],
-    (err, rows) => {
-      if (err) return res.status(500).json(err);
-      res.json(rows);
-    }
-  );
-});
+  const notes = db.prepare("SELECT * FROM notes WHERE user_id=?")
+                  .all(req.user.id);
 
+  res.json(notes);
+});
 
 app.post('/notes', auth, (req, res) => {
   const { title, content } = req.body;
 
-  db.run(
-    "INSERT INTO notes (user_id, title, content) VALUES (?, ?, ?)",
-    [req.user.id, title, content],
-    function (err) {
-      if (err) return res.status(500).json(err);
-      res.json({ id: this.lastID });
-    }
-  );
-});
+  const result = db.prepare(
+    "INSERT INTO notes (user_id, title, content) VALUES (?, ?, ?)"
+  ).run(req.user.id, title, content);
 
+  res.json({ id: result.lastInsertRowid });
+});
 
 app.put('/notes/:id', auth, (req, res) => {
   const { title, content } = req.body;
 
-  db.run(
-    "UPDATE notes SET title=?, content=? WHERE id=? AND user_id=?",
-    [title, content, req.params.id, req.user.id],
-    function (err) {
-      if (err) return res.status(500).json(err);
-      res.json({ updated: this.changes });
-    }
-  );
-});
+  const result = db.prepare(
+    "UPDATE notes SET title=?, content=? WHERE id=? AND user_id=?"
+  ).run(title, content, req.params.id, req.user.id);
 
+  res.json({ updated: result.changes });
+});
 
 app.delete('/notes/:id', auth, (req, res) => {
-  db.run(
-    "DELETE FROM notes WHERE id=? AND user_id=?",
-    [req.params.id, req.user.id],
-    function (err) {
-      if (err) return res.status(500).json(err);
-      res.json({ deleted: this.changes });
-    }
-  );
-});
+  const result = db.prepare(
+    "DELETE FROM notes WHERE id=? AND user_id=?"
+  ).run(req.params.id, req.user.id);
 
+  res.json({ deleted: result.changes });
+});
 
 app.listen(5000, () => console.log("Server running on port 5000"));

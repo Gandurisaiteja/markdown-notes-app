@@ -1,23 +1,23 @@
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 
-const db = new sqlite3.Database('./notes.db');
+const db = new Database('notes.db');
 
-db.serialize(() => {
-
-  
-  db.run(`CREATE TABLE IF NOT EXISTS users (
+// create tables
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE,
     password TEXT
-  )`);
+  )
+`).run();
 
-
-  db.run(`CREATE TABLE IF NOT EXISTS notes (
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
     title TEXT,
     content TEXT
-  )`);
-});
+  )
+`).run();
 
 module.exports = db;
