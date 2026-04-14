@@ -22,9 +22,10 @@ function Notes({ token }) {
     setNotes(res.data);
   };
 
-  useEffect(() => {
-    fetchNotes();
-  }, []);
+useEffect(() => {
+  fetchNotes();
+// eslint-disable-next-line
+}, []);
 
   return (
     <div className="layout">
